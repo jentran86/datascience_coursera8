@@ -1,0 +1,100 @@
+---
+title: "Practical Machine Learning- Course Project Write Up"
+author: "Jenny"
+date: "22 January 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset)."
+
+Data
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. The information has been generously provided for use use in this cousera course by the authors, Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. They have allowed the use of their paper "Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+Both were downloaded for use in this assignment on September 3, 2015 at 6:50am GMT + 8hours.
+
+
+```{r load_data}
+library(ggplot2)
+library(caret)
+
+library(randomForest)
+
+library(e1071)
+library(gbm)
+
+library(doParallel)
+library(survival)
+library(splines)
+library(plyr)
+
+train.data.raw <- read.csv("C:/Users/HP/Documents/R/course8/pml-training.csv", na.strings=c("#DIV/0!"), row.names = 1)
+test.data.raw <- read.csv("C:/Users/HP/Documents/R/course8/pml-testing.csv", na.strings=c("#DIV/0!"), row.names = 1)
+# Drop the first 7 columns as they're unnecessary for predicting.
+train.data.clean1 <- train.data.raw[,8:length(colnames(train.data.raw))]
+test.data.clean1 <- test.data.raw[,8:length(colnames(test.data.raw))]
+
+# Drop colums with NAs
+train.data.clean1 <- train.data.clean1[, colSums(is.na(train.data.clean1)) == 0] 
+test.data.clean1 <- test.data.clean1[, colSums(is.na(test.data.clean1)) == 0] 
+
+# Check for near zero variance predictors and drop them if necessary
+nzv <- nearZeroVar(train.data.clean1,saveMetrics=TRUE)
+zero.var.ind <- sum(nzv$nzv)
+
+if ((zero.var.ind>0)) {
+        train.data.clean1 <- train.data.clean1[,nzv$nzv==FALSE]
+}
+
+```
+```{r model}
+in.training <- createDataPartition(train.data.clean1$classe, p=0.70, list=F)
+train.data.final <- train.data.clean1[in.training, ]
+validate.data.final <- train.data.clean1[-in.training, ]
+control.parms <- trainControl(method="cv", 5)
+rf.model <- train(classe ~ ., data=train.data.final, method="rf",
+                 trControl=control.parms, ntree=251)
+rf.model
+```
+```{r estimate}
+rf.predict <- predict(rf.model, validate.data.final)
+confusionMatrix(validate.data.final$classe, rf.predict)
+accuracy <- postResample(rf.predict, validate.data.final$classe)
+acc.out <- accuracy[1]
+
+overall.ose <- 
+        1 - as.numeric(confusionMatrix(validate.data.final$classe, rf.predict)
+                       $overall[1])
+```
+
+Conclusion
+
+The Random Forest method worked very well.
+
+The Confusion Matrix achieved 99.6% accuracy. The Out of Sample Error achieved 99.7449 %.
+
+This model will be used for the final calculations.
+
+The logic behind using the random forest method as the predictor rather than other methods or a combination of various methods is:
+
+Run the model
+The model is applied to the test data to produce the results.
+```{r run}
+results <- predict(rf.model, 
+                   test.data.clean1[, -length(names(test.data.clean1))])
+results
+```
